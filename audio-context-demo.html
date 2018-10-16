@@ -1,0 +1,88 @@
+<html>
+    <head>
+    </head>
+    <body>
+        <script>
+            window.AudioContext = window.AudioContext || window.webkitAudioContext
+
+            const ctx = window._ctx = new AudioContext()
+
+            async function play() {
+                await playArrayBuffer(await (await fetch('./right.mp3')).arrayBuffer(), ctx)
+            }
+
+            async function play2() {
+                await playArrayBuffer(await (await fetch('./click.mp3')).arrayBuffer(), ctx)
+            }
+
+            async function playArrayBuffer(buffer, ctx) {
+                try {
+                    buffer = await new Promise((resolve, reject) => ctx.decodeAudioData(buffer, resolve, reject)) // for ios safari
+                    await new Promise(r => {
+                        const source = ctx.createBufferSource()
+                        const analyser = ctx.createAnalyser()
+                        let forceStopTimeoutId // for ios safari
+
+                        source.onended = () => {
+                            clearTimeout(forceStopTimeoutId)
+                            r()
+                        }
+
+                        //connect the source to the analyser
+                        source.connect(analyser)
+                        //connect the analyser to the destination(the speaker), or we won't hear the sound
+                        analyser.connect(ctx.destination)
+                        //then assign the buffer to the buffer source node
+                        source.buffer = buffer
+                        console.error(window._lastAna = analyser)
+                        source.start(0)
+                        forceStopTimeoutId = setTimeout(() => {
+                            console.log('force kill playArrayBuffer', buffer.duration)
+                            r()
+                        }, buffer.duration * 1000 + 500)
+                    })
+                } catch (e) {
+                    console.error('playArrayBuffer', e)
+                }
+            }
+
+
+            function unlockAudioContext(ctx) {
+                return new Promise((resolve, reject) => {
+                    if (ctx.state === 'suspended') {
+                        function unlock() {
+                            if (ctx.state !== 'suspended') return
+
+                            ctx.resume().then(
+                                () => {
+                                    document.body.removeEventListener('touchstart', unlock, true)
+                                    document.body.removeEventListener('touchend', unlock, true)
+                                    document.body.removeEventListener('mousedown', unlock, true)
+                                    document.body.removeEventListener('mouseup', unlock, true)
+                                    resolve(true)
+                                },
+                                reason => reject(reason)
+                            )
+                        }
+
+                        document.body.addEventListener('touchstart', unlock, true)
+                        document.body.addEventListener('touchend', unlock, true)
+                        document.body.addEventListener('mousedown', unlock, true)
+                        document.body.addEventListener('mouseup', unlock, true)
+                    }
+                    else resolve(false)
+                })
+            }
+
+            unlockAudioContext(ctx)
+        </script>
+        <button
+            style="font-size:80px;"
+            onclick="play()"
+        >play</button>
+        <button
+            style="font-size:80px;"
+            onclick="play2()"
+        >play2</button>
+    </body>
+</html>
